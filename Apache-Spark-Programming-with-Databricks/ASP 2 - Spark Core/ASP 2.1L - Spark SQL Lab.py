@@ -29,13 +29,21 @@
 
 # COMMAND ----------
 
+# MAGIC %fs ls /user/steve.johansen@databricks.com/dbacademy/aspwd/datasets/events/events.delta
+
+# COMMAND ----------
+
 # MAGIC %md ### 1. Create a DataFrame from the **`events`** table
 # MAGIC - Use SparkSession to create a DataFrame from the **`events`** table
 
 # COMMAND ----------
 
-# TODO
-events_df = FILL_IN
+events_df = spark.table('events')
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val eventsDf = spark.table("events")
 
 # COMMAND ----------
 
@@ -44,7 +52,25 @@ events_df = FILL_IN
 
 # COMMAND ----------
 
-# TODO
+display(events_df)
+
+# COMMAND ----------
+
+events_df.printSchema()
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC eventsDf.printSchema
+
+# COMMAND ----------
+
+events_df.show(truncate=False, n=5)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC eventsDf.show(5, false)
 
 # COMMAND ----------
 
@@ -56,10 +82,42 @@ events_df = FILL_IN
 
 # COMMAND ----------
 
-# TODO
+from pyspark.sql.functions import *
+
+# COMMAND ----------
+
 mac_df = (events_df
-          .FILL_IN
+          .where(col('device') == lit('macOS'))
+          .orderBy(desc(col('event_timestamp')))
          )
+
+display(mac_df)
+
+# COMMAND ----------
+
+mac_df = (events_df
+          .where("device = 'macOS'")
+          .orderBy("event_timestamp", ascending=False)
+         )
+
+display(mac_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC import org.apache.spark.sql.functions._
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val macDf = eventsDf
+# MAGIC //               .where(col("device") === lit("macOS"))
+# MAGIC //               .orderBy(col("event_timestamp").desc)
+# MAGIC               .where("device = 'macOS'")
+# MAGIC               .orderBy(desc("event_timestamp"))
+# MAGIC               
+# MAGIC 
+# MAGIC display(macDf)
 
 # COMMAND ----------
 
@@ -68,9 +126,8 @@ mac_df = (events_df
 
 # COMMAND ----------
 
-# TODO
-num_rows = mac_df.FILL_IN
-rows = mac_df.FILL_IN
+num_rows = mac_df.count()
+rows = mac_df.head(5)
 
 # COMMAND ----------
 
@@ -87,14 +144,38 @@ print("All test pass")
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC val numRows = macDf.count
+# MAGIC val rows = macDf.head(5)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC import org.apache.spark.sql.Row
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC assert(numRows == 1938215)
+# MAGIC assert(rows.length == 5)
+# MAGIC assert(rows.head.isInstanceOf[Row])
+# MAGIC println("All tests pass")
+
+# COMMAND ----------
+
 # MAGIC %md ### 5. Create the same DataFrame using SQL query
 # MAGIC - Use SparkSession to run a SQL query on the **`events`** table
 # MAGIC - Use SQL commands to write the same filter and sort query used earlier
 
 # COMMAND ----------
 
-# TODO
-mac_sql_df = spark.FILL_IN
+mac_sql_query = """
+SELECT *
+  FROM events
+ WHERE device = 'macOS'
+ ORDER BY event_timestamp ASC
+"""
+mac_sql_df = spark.sql(mac_sql_query)
 
 display(mac_sql_df)
 
@@ -111,6 +192,22 @@ assert (mac_sql_df.select("device").distinct().count() == 1 and len(verify_rows)
 assert (verify_rows[4]['event_timestamp'] == 1592539226602157), "Incorrect sorting"
 del verify_rows
 print("All test pass")
+
+# COMMAND ----------
+
+from pyspark.sql.types import *
+
+schema = StructType([
+  StructField("name", StringType(), True),
+  StructField("age", IntegerType(), True)
+])
+
+peeps_df = spark.createDataFrame([
+  ('Alice', 5),
+  ('Bob', 1),
+  ('Chuck', 4)
+], schema).selectExpr('name', 'cast(age AS DOUBLE)').orderBy(desc('age'))
+
 
 # COMMAND ----------
 
