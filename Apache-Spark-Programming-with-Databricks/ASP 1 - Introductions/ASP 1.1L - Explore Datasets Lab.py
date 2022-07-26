@@ -28,6 +28,11 @@
 
 # COMMAND ----------
 
+# MAGIC %sql
+# MAGIC SELECT current_database()
+
+# COMMAND ----------
+
 # MAGIC %md ### 1. List data files in DBFS using magic commands
 # MAGIC Use a magic command to display files located in the DBFS directory: **`dbfs:/databricks-datasets`**
 # MAGIC 
@@ -35,8 +40,7 @@
 
 # COMMAND ----------
 
-# TODO
-<FILL_IN>
+# MAGIC %fs ls /databricks-datasets
 
 # COMMAND ----------
 
@@ -48,8 +52,9 @@
 
 # COMMAND ----------
 
-# TODO
-files = dbutils.FILL_IN
+databricks_datasets_path = '/databricks-datasets'
+
+files = dbutils.fs.ls(databricks_datasets_path)
 display(files)
 
 # COMMAND ----------
@@ -65,7 +70,30 @@ display(files)
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC -- TODO
+# MAGIC CREATE TABLE IF NOT EXISTS users
+# MAGIC USING DELTA
+# MAGIC LOCATION "${c.users_path}"
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC CREATE TABLE IF NOT EXISTS sales
+# MAGIC USING DELTA
+# MAGIC LOCATION "${c.sales_path}"
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC CREATE TABLE IF NOT EXISTS products
+# MAGIC USING DELTA
+# MAGIC LOCATION "${c.products_path}"
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC CREATE TABLE IF NOT EXISTS events
+# MAGIC USING DELTA
+# MAGIC LOCATION "${c.events_path}"
 
 # COMMAND ----------
 
@@ -101,7 +129,20 @@ display(files)
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC -- TODO
+# MAGIC SELECT *
+# MAGIC   FROM products
+
+# COMMAND ----------
+
+# MAGIC %python
+# MAGIC products_df = spark.table("products")
+# MAGIC display(products_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val productsDf = spark.table("products")
+# MAGIC display(productsDf)
 
 # COMMAND ----------
 
@@ -127,7 +168,45 @@ display(files)
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC -- TODO
+# MAGIC SELECT ROUND(AVG(purchase_revenue_in_usd), 2) AS purchase_revenue_in_usd_avg
+# MAGIC   FROM sales
+
+# COMMAND ----------
+
+# MAGIC %python
+# MAGIC from pyspark.sql.functions import *
+# MAGIC 
+# MAGIC expected = 1042.79
+# MAGIC 
+# MAGIC sales_df = spark.table('sales')
+# MAGIC sales_avg_df = (sales_df
+# MAGIC                 .select(
+# MAGIC                   round(avg(col('purchase_revenue_in_usd')), 2).alias('purchase_revenue_in_usd_avg')
+# MAGIC                 ))
+# MAGIC 
+# MAGIC avg = sales_avg_df.first()['purchase_revenue_in_usd_avg']
+# MAGIC 
+# MAGIC try:
+# MAGIC   assert avg == expected
+# MAGIC except AssertionError:
+# MAGIC   import sys
+# MAGIC   print(f'Assertion Failed => want: {expected}, got: {avg}', file=sys.stderr)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC import org.apache.spark.sql.functions._
+# MAGIC import scala.util.{Try, Success, Failure}
+# MAGIC 
+# MAGIC val expected = 1042.79
+# MAGIC 
+# MAGIC val salesDf = spark.table("sales")
+# MAGIC 
+# MAGIC val salesAvgDf = salesDf.select(round(avg(col("purchase_revenue_in_usd")), 2).alias("purchase_revenue_in_usd_avg"))
+# MAGIC 
+# MAGIC val salesAvgRes = salesAvgDf.head(1).map(_.getAs[Double]("purchase_revenue_in_usd_avg")).headOption.getOrElse(0.0)
+# MAGIC 
+# MAGIC Try(assert(salesAvgRes == expected)).getOrElse(System.err.println(s"Assertion Failed => want: ${expected}, got: ${salesAvgRes}"))
 
 # COMMAND ----------
 
@@ -156,7 +235,37 @@ display(files)
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC -- TODO
+# MAGIC SELECT COUNT(DISTINCT(event_name)) AS event_name_distinct
+# MAGIC   FROM events
+
+# COMMAND ----------
+
+# MAGIC %python
+# MAGIC from pyspark.sql.functions import * 
+# MAGIC 
+# MAGIC expected = 23
+# MAGIC 
+# MAGIC events_df = spark.table('events')
+# MAGIC distinct_count = events_df.select(col('event_name')).distinct().count()
+# MAGIC 
+# MAGIC try:
+# MAGIC   assert(distinct_count == expected)
+# MAGIC except AssertionError:
+# MAGIC   import sys
+# MAGIC   print(f'Assertion Failed => want: {expected}, got: {avg}', file=sys.stderr)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC import org.apache.spark.sql.functions._
+# MAGIC import scala.util.{Try, Success, Failure}
+# MAGIC 
+# MAGIC val expected = 23
+# MAGIC 
+# MAGIC val eventsDF = spark.table("events")
+# MAGIC val distinctCount = eventsDF.select(col("event_name")).distinct.count
+# MAGIC 
+# MAGIC Try(assert(distinctCount == expected)).getOrElse(System.err.println(s"Assertion Failed => want: ${expected}, got: ${distinctCount}"))
 
 # COMMAND ----------
 
