@@ -31,18 +31,36 @@
 
 # COMMAND ----------
 
-# TODO
 single_product_csv_file_path = f"{datasets_dir}/products/products.csv/part-00000-tid-1663954264736839188-daf30e86-5967-4173-b9ae-d1481d3506db-2367-1-c000.csv"
-print(FILL_IN)
+print(dbutils.fs.head(single_product_csv_file_path))
 
 products_csv_path = f"{datasets_dir}/products/products.csv"
-products_df = FILL_IN
+products_df = spark.read.csv(products_csv_path, header=True, inferSchema=True)
 
 products_df.printSchema()
 
 # COMMAND ----------
 
+print(datasets_dir)
+
+# COMMAND ----------
+
 # MAGIC %md **1.1: CHECK YOUR WORK**
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val datasetsDir = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/datasets"
+# MAGIC 
+# MAGIC val singleFileCsvPath = s"${datasetsDir}/products/products.csv/part-00000-tid-1663954264736839188-daf30e86-5967-4173-b9ae-d1481d3506db-2367-1-c000.csv"
+# MAGIC 
+# MAGIC println(dbutils.fs.head(singleFileCsvPath))
+# MAGIC 
+# MAGIC val productsCsvPath = s"${datasetsDir}/products/products.csv"
+# MAGIC 
+# MAGIC val productsDf = spark.read.option("header", "true").option("inferSchema", "true").csv(productsCsvPath)
+# MAGIC 
+# MAGIC productsDf.printSchema
 
 # COMMAND ----------
 
@@ -51,15 +69,41 @@ print("All test pass")
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC assert(productsDf.count == 12)
+# MAGIC println("All tests pass")
+
+# COMMAND ----------
+
 # MAGIC %md ### 2. Read with user-defined schema
 # MAGIC Define schema by creating a **`StructType`** with column names and data types
 
 # COMMAND ----------
 
-# TODO
-user_defined_schema = FILL_IN
+from pyspark.sql.types import *
 
-products_df2 = FILL_IN
+user_defined_schema = StructType([
+  StructField("item_id", StringType(), True),
+  StructField("name", StringType(), True),
+  StructField("price", DoubleType(), True)
+])
+
+products_df2 = spark.read.schema(user_defined_schema).csv(products_csv_path, header=True)
+display(products_df2)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC import org.apache.spark.sql.types._
+# MAGIC 
+# MAGIC val userDefinedSchema = StructType(List(
+# MAGIC   StructField("item_id", StringType, nullable=true),
+# MAGIC   StructField("name", StringType, nullable=true),
+# MAGIC   StructField("price", DoubleType, nullable=true)
+# MAGIC ))
+# MAGIC 
+# MAGIC val productsDf2 = spark.read.schema(userDefinedSchema).option("header", "true").csv(productsCsvPath)
+# MAGIC display(productsDf2)
 
 # COMMAND ----------
 
@@ -69,6 +113,13 @@ products_df2 = FILL_IN
 
 assert(user_defined_schema.fieldNames() == ["item_id", "name", "price"])
 print("All test pass")
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC assert(userDefinedSchema.fields.toList.map(_.name) == List("item_id", "name", "price"))
+# MAGIC println("All tests pass")
 
 # COMMAND ----------
 
@@ -82,14 +133,41 @@ print("All test pass")
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC import org.apache.spark.sql.Row
+# MAGIC 
+# MAGIC val expected1 = Row("M_STAN_Q", "Standard Queen Mattress", 1045.0)
+# MAGIC val result1 = productsDf2.head(1).headOption
+# MAGIC 
+# MAGIC assert(Option(expected1) == result1)
+# MAGIC print("All tests pass")
+
+# COMMAND ----------
+
 # MAGIC %md ### 3. Read with DDL formatted string
 
 # COMMAND ----------
 
-# TODO
-ddl_schema = FILL_IN
+ddl_schema = """
+item_id STRING,
+name STRING,
+price DOUBLE
+"""
 
-products_df3 = FILL_IN
+products_df3 = spark.read.schema(ddl_schema).csv(products_csv_path, header=True)
+display(products_df3)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val ddlSchema = """
+# MAGIC item_id STRING,
+# MAGIC name STRING,
+# MAGIC price DOUBLE
+# MAGIC """
+# MAGIC 
+# MAGIC val productsDf3 = spark.read.schema(ddlSchema).option("header", "true").csv(productsCsvPath)
+# MAGIC display(productsDf3)
 
 # COMMAND ----------
 
@@ -102,14 +180,32 @@ print("All test pass")
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC assert(productsDf3.count == 12)
+# MAGIC println("All tests pass")
+
+# COMMAND ----------
+
 # MAGIC %md ### 4. Write to Delta
 # MAGIC Write **`products_df`** to the filepath provided in the variable **`products_output_path`**
 
 # COMMAND ----------
 
-# TODO
 products_output_path = working_dir + "/delta/products"
-products_df.FILL_IN
+products_df.write.format("delta").mode("overwrite").save(products_output_path)
+
+# COMMAND ----------
+
+print(working_dir)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val workingDir = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/asp_2_2l_ingesting_data_lab"
+# MAGIC 
+# MAGIC val productsOutputPath = s"${workingDir}/delta/products"
+# MAGIC productsDf.write.format("delta").mode(SaveMode.Overwrite).save(productsOutputPath)
 
 # COMMAND ----------
 
@@ -130,6 +226,15 @@ assert verify_delta_format, "Data not written in Delta format"
 assert verify_num_data_files > 0, "No data written"
 del verify_files, verify_delta_format, verify_num_data_files
 print("All test pass")
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val verifyFiles = dbutils.fs.ls(productsOutputPath)
+# MAGIC 
+# MAGIC assert(verifyFiles.toList.map(_.name).exists(_ == "_delta_log/"))
+# MAGIC assert(verifyFiles.toList.map(_.name).filter(_.endsWith(".parquet")).size > 0)
+# MAGIC println("All tests pass")
 
 # COMMAND ----------
 
