@@ -44,6 +44,23 @@ display(df)
 
 # COMMAND ----------
 
+print(events_path)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC import org.apache.spark.sql.functions._
+# MAGIC 
+# MAGIC val eventsPath = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/datasets/events/events.delta"
+# MAGIC 
+# MAGIC val df = spark.read.format("delta").load(eventsPath)
+# MAGIC       .withColumn("revenue", col("ecommerce.purchase_revenue_in_usd"))
+# MAGIC       .filter(col("revenue").isNotNull)
+# MAGIC       .drop("event_name")
+# MAGIC display(df)
+
+# COMMAND ----------
+
 # MAGIC %md ### 1. Aggregate revenue by traffic source
 # MAGIC - Group by **`traffic_source`**
 # MAGIC - Get sum of **`revenue`** as **`total_rev`**
@@ -53,12 +70,32 @@ display(df)
 
 # COMMAND ----------
 
-# TODO
+from pyspark.sql.functions import *
 
-traffic_df = (df.FILL_IN
+traffic_df = (df
+              .groupBy(col("traffic_source"))
+              .agg(
+                sum(col("revenue")).alias("total_rev"),
+                avg(col("revenue")).alias("avg_rev")
+              )
 )
 
 display(traffic_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC import org.apache.spark.sql.functions._
+# MAGIC 
+# MAGIC val trafficDf = df
+# MAGIC   .groupBy(col("traffic_source"))
+# MAGIC   .agg(
+# MAGIC     sum(col("revenue")).as("total_rev"),
+# MAGIC     avg(col("revenue")).as("avg_rev")
+# MAGIC   )
+# MAGIC 
+# MAGIC display(trafficDf)
 
 # COMMAND ----------
 
@@ -77,14 +114,26 @@ print("All test pass")
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC val expected1 = List((12704560.0, 1083.175), (78800000.3, 983.2915), (24797837.0, 1076.6221), (47218429.0, 1086.8303), (16177893.0, 1083.4378), (8044326.0, 1087.218))
+# MAGIC 
+# MAGIC val testDf = trafficDf.sort("traffic_source").select(round(col("total_rev"), 4).as("total_rev"), round(col("avg_rev"), 4).as("avg_rev"))
+# MAGIC val result1 = testDf.collect.map(r => (r.getDouble(0), r.getDouble(1))).toList
+# MAGIC 
+# MAGIC assert(expected1 == result1)
+# MAGIC println("All tests pass")
+
+# COMMAND ----------
+
 # MAGIC %md ### 2. Get top three traffic sources by total revenue
 # MAGIC - Sort by **`total_rev`** in descending order
 # MAGIC - Limit to first three rows
 
 # COMMAND ----------
 
-# TODO
-top_traffic_df = (traffic_df.FILL_IN
+top_traffic_df = (traffic_df
+                  .sort(col("total_rev").desc())
+                  .limit(3)
 )
 display(top_traffic_df)
 
@@ -103,6 +152,26 @@ print("All test pass")
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC val topTrafficDf = trafficDf
+# MAGIC   .sort(col("total_rev").desc)
+# MAGIC   .limit(3)
+# MAGIC 
+# MAGIC display(topTrafficDf)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val expected2 = List((78800000.3, 983.2915), (47218429.0, 1086.8303), (24797837.0, 1076.6221))
+# MAGIC val testDf = topTrafficDf.select(round(col("total_rev"), 4).as("total_rev"), round(col("avg_rev"), 4).as("avg_rev"))
+# MAGIC 
+# MAGIC val result2 = testDf.collect.map(r => (r.getDouble(0), r.getDouble(1))).toList
+# MAGIC assert(expected2 == result2)
+# MAGIC println("All tests passed")
+
+# COMMAND ----------
+
 # MAGIC %md ### 3. Limit revenue columns to two decimal places
 # MAGIC - Modify columns **`avg_rev`** and **`total_rev`** to contain numbers with two decimal places
 # MAGIC   - Use **`withColumn()`** with the same names to replace these columns
@@ -110,11 +179,37 @@ print("All test pass")
 
 # COMMAND ----------
 
-# TODO
-final_df = (top_traffic_df.FILL_IN
+def two_dec(c):
+  return (c * 100).cast("long") / 100
+
+
+final_df = (top_traffic_df
+            .withColumn("total_rev", two_dec(col("total_rev")))
+            .withColumn("avg_rev", two_dec(col("avg_rev")))
 )
 
 display(final_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC import org.apache.spark.sql.{DataFrame, Column}
+# MAGIC 
+# MAGIC def twoDec(c: Column): Column = {
+# MAGIC   (c * 100).cast("long") / 100
+# MAGIC }
+# MAGIC 
+# MAGIC def addCols(cols: List[String], df: DataFrame)(implicit f: Column => Column): DataFrame = {
+# MAGIC   cols.foldLeft(df) { (acc, c) => 
+# MAGIC     acc.withColumn(c, f(col(c)))
+# MAGIC   }
+# MAGIC }
+# MAGIC 
+# MAGIC val colNames = List("total_rev", "avg_rev")
+# MAGIC 
+# MAGIC val finalDf = addCols(colNames, topTrafficDf)(twoDec)
+# MAGIC 
+# MAGIC display(finalDf)
 
 # COMMAND ----------
 
@@ -130,15 +225,32 @@ print("All test pass")
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC val expected3 = List((78800000.29, 983.29), (47218429.0, 1086.83), (24797837.0, 1076.62))
+# MAGIC val result3 = finalDf.select("total_rev", "avg_rev").collect.map(r => (r.getDouble(0), r.getDouble(1))).toList
+# MAGIC 
+# MAGIC assert(expected3 == result3)
+# MAGIC println("All tests pass")
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### 4. Bonus: Rewrite using a built-in math function
 # MAGIC Find a built-in math function that rounds to a specified number of decimal places
 
 # COMMAND ----------
 
-# TODO
-bonus_df = (top_traffic_df.FILL_IN
-)
+import functools
+
+def two_dec(c, n=2):
+  return round(c, n)
+
+def add_cols(cols, df, f):
+  return functools.reduce(lambda acc, c: acc.withColumn(c, f(col(c))), cols, df)
+
+col_list = ['total_rev', 'avg_rev']
+
+bonus_df = add_cols(col_list, top_traffic_df, two_dec)
 
 display(bonus_df)
 
@@ -161,8 +273,17 @@ print("All test pass")
 # COMMAND ----------
 
 # TODO
-chain_df = (df.FILL_IN
-)
+chain_df = (df
+            .groupBy(col("traffic_source"))
+            .agg(
+              sum(col("revenue")).alias("total_rev"),
+              avg(col("revenue")).alias("avg_rev")
+            )
+            .sort(col("total_rev").desc())
+            .limit(3)
+            .withColumn("total_rev", round(col("total_rev"), 2))
+            .withColumn("avg_rev", round(col("avg_rev"), 2))
+           )
 
 display(chain_df)
 

@@ -35,6 +35,18 @@ display(df)
 
 # COMMAND ----------
 
+print(events_path)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val eventsPath = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/datasets/events/events.delta"
+# MAGIC 
+# MAGIC val df = spark.read.format("delta").load(eventsPath)
+# MAGIC display(df)
+
+# COMMAND ----------
+
 # MAGIC %md ### Grouping data
 # MAGIC 
 # MAGIC <img src="https://files.training.databricks.com/images/aspwd/aggregation_groupby.png" width="60%" />
@@ -53,6 +65,18 @@ df.groupBy("event_name")
 # COMMAND ----------
 
 df.groupBy("geo.state", "geo.city")
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC import org.apache.spark.sql.functions._
+# MAGIC 
+# MAGIC df.groupBy(col("event_name"))
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC df.groupBy(List("geo.state", "geo.city").map(col): _*)
 
 # COMMAND ----------
 
@@ -78,12 +102,26 @@ display(event_counts_df)
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC 
+# MAGIC 
+# MAGIC val eventCountsDf = df.groupBy("event_name").count
+# MAGIC display(eventCountsDf)
+
+# COMMAND ----------
+
 # MAGIC %md Here, we're getting the average purchase revenue for each.
 
 # COMMAND ----------
 
 avg_state_purchases_df = df.groupBy("geo.state").avg("ecommerce.purchase_revenue_in_usd")
-display(avg_state_purchases_df)
+display(avg_state_purchases_df.orderBy("state"))
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val avgStatePurchaseDf = df.groupBy("geo.state").avg("ecommerce.purchase_revenue_in_usd")
+# MAGIC display(avgStatePurchaseDf.orderBy(col("state")))
 
 # COMMAND ----------
 
@@ -93,7 +131,13 @@ display(avg_state_purchases_df)
 # COMMAND ----------
 
 city_purchase_quantities_df = df.groupBy("geo.state", "geo.city").sum("ecommerce.total_item_quantity", "ecommerce.purchase_revenue_in_usd")
-display(city_purchase_quantities_df)
+display(city_purchase_quantities_df.orderBy("state", "city"))
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val cityPurchaseQuantitiesDf = df.groupBy("geo.state", "geo.city").sum("ecommerce.total_item_quantity", "ecommerce.purchase_revenue_in_usd")
+# MAGIC display(cityPurchaseQuantitiesDf.orderBy("state", "city"))
 
 # COMMAND ----------
 
@@ -133,6 +177,12 @@ display(state_purchases_df)
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC val statePurchasesDf = df.groupBy("geo.state").agg(sum("ecommerce.total_item_quantity").alias("total_purchases"))
+# MAGIC display(statePurchasesDf)
+
+# COMMAND ----------
+
 # MAGIC %md Apply multiple aggregate functions on grouped data
 
 # COMMAND ----------
@@ -146,6 +196,18 @@ state_aggregates_df = (df
                       )
 
 display(state_aggregates_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val stateAggregatesDf = df
+# MAGIC   .groupBy("geo.state")
+# MAGIC   .agg(
+# MAGIC     avg("ecommerce.total_item_quantity").as("avg_quantity"),
+# MAGIC     approx_count_distinct("user_id").as("distinct_users")
+# MAGIC   )
+# MAGIC 
+# MAGIC display(stateAggregatesDf)
 
 # COMMAND ----------
 
@@ -168,6 +230,16 @@ display(spark.range(10)  # Create a DataFrame with a single column called "id" w
         .withColumn("sqrt", sqrt("id"))
         .withColumn("cos", cos("id"))
        )
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC display(
+# MAGIC   spark
+# MAGIC     .range(10)
+# MAGIC     .withColumn("sqrt", sqrt(col("id")))
+# MAGIC     .withColumn("cos", cos(col("id")))
+# MAGIC )
 
 # COMMAND ----------
 
