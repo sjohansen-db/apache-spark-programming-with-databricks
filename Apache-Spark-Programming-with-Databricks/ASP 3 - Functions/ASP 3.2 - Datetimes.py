@@ -38,6 +38,25 @@ display(df)
 
 # COMMAND ----------
 
+print(events_path)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC import org.apache.spark.sql.functions._
+# MAGIC 
+# MAGIC val eventsPath = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/datasets/events/events.delta"
+# MAGIC 
+# MAGIC val df = spark.read.format("delta").load(eventsPath)
+# MAGIC   .select(
+# MAGIC     col("user_id"),
+# MAGIC     col("event_timestamp").as("timestamp")
+# MAGIC   )
+# MAGIC 
+# MAGIC display(df)
+
+# COMMAND ----------
+
 # MAGIC %md ### Built-In Functions: Date Time Functions
 # MAGIC Here are a few built-in functions to manipulate dates and times in Spark.
 # MAGIC 
@@ -64,6 +83,14 @@ display(df)
 
 timestamp_df = df.withColumn("timestamp", (col("timestamp") / 1e6).cast("timestamp"))
 display(timestamp_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC import org.apache.spark.sql.types._
+# MAGIC 
+# MAGIC val timestampDf = df.withColumn("timestamp", (col("timestamp") / 1e6).cast(TimestampType))
+# MAGIC display(timestampDf)
 
 # COMMAND ----------
 
@@ -115,6 +142,16 @@ display(formatted_df)
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC val formattedDf = timestampDf
+# MAGIC   .withColumn("date string", date_format(col("timestamp"), "MMMM dd, yyyy"))
+# MAGIC   .withColumn("time string", date_format(col("timestamp"), "HH:mm:ss.SSSSSS"))
+# MAGIC //   .withColumn("xxx", date_format(col("timestamp"), "EEEE, dd MMMM yyyy"))
+# MAGIC                                          
+# MAGIC display(formattedDf)
+
+# COMMAND ----------
+
 # MAGIC %md ### Extract datetime attribute from timestamp
 
 # COMMAND ----------
@@ -139,6 +176,20 @@ display(datetime_df)
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC 
+# MAGIC var datetimeDf = timestampDf
+# MAGIC   .withColumn("year", year(col("timestamp")))
+# MAGIC   .withColumn("month", month(col("timestamp")))
+# MAGIC   .withColumn("dayofweek", dayofweek(col("timestamp")))
+# MAGIC //   .withColumn("hour", hour(col("timestamp")))
+# MAGIC   .withColumn("minute", minute(col("timestamp")))
+# MAGIC   .withColumn("second", second(col("timestamp")))
+# MAGIC 
+# MAGIC display(datetimeDf)
+
+# COMMAND ----------
+
 # MAGIC %md ### Convert to Date
 
 # COMMAND ----------
@@ -155,6 +206,14 @@ display(date_df)
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC 
+# MAGIC val dateDf = timestampDf.withColumn("date", to_date(col("timestamp")))
+# MAGIC 
+# MAGIC display(dateDf)
+
+# COMMAND ----------
+
 # MAGIC %md ### Manipulate Datetimes
 
 # COMMAND ----------
@@ -168,6 +227,14 @@ from pyspark.sql.functions import date_add
 
 plus_2_df = timestamp_df.withColumn("plus_two_days", date_add(col("timestamp"), 2))
 display(plus_2_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val plus2Df = timestampDf.withColumn("plus_two_days", date_add(col("timestamp"), 2))
+# MAGIC 
+# MAGIC display(plus2Df)
 
 # COMMAND ----------
 

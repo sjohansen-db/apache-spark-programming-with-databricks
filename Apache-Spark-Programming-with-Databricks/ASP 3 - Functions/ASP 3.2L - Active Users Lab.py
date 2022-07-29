@@ -40,16 +40,52 @@ display(df)
 
 # COMMAND ----------
 
+print(events_path)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC import org.apache.spark.sql.functions._
+# MAGIC 
+# MAGIC val eventsPath = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/datasets/events/events.delta"
+# MAGIC 
+# MAGIC val df = spark.read.format("delta").load(eventsPath)
+# MAGIC     .select(
+# MAGIC       col("user_id"),
+# MAGIC       col("event_timestamp").as("ts")
+# MAGIC     )
+# MAGIC 
+# MAGIC display(df)
+
+# COMMAND ----------
+
 # MAGIC %md ### 1. Extract timestamp and date of events
 # MAGIC - Convert **`ts`** from microseconds to seconds by dividing by 1 million and cast to timestamp
 # MAGIC - Add **`date`** column by converting **`ts`** to date
 
 # COMMAND ----------
 
-# TODO
-datetime_df = (df.FILL_IN
+from pyspark.sql.functions import *
+
+datetime_df = (df
+               .withColumn("ts", (col("ts") / 1e6).cast("timestamp"))
+               .withColumn("date", to_date(col("ts")))
 )
 display(datetime_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC import org.apache.spark.sql.functions._
+# MAGIC import org.apache.spark.sql.types._
+# MAGIC 
+# MAGIC val datetimeDf = df
+# MAGIC     .withColumn("ts", (col("ts") / 1e6).cast(TimestampType))
+# MAGIC     .withColumn("date", to_date(col("ts")))
+# MAGIC 
+# MAGIC display(datetimeDf)
 
 # COMMAND ----------
 
@@ -70,6 +106,19 @@ print("All test pass")
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC val expected1a = StructType(List(
+# MAGIC   StructField("user_id", StringType, nullable=true),
+# MAGIC   StructField("ts", TimestampType, nullable=true),
+# MAGIC   StructField("date", DateType, nullable=true)
+# MAGIC ))
+# MAGIC 
+# MAGIC val result1a = datetimeDf.schema
+# MAGIC assert(expected1a == result1a)
+# MAGIC println("All tests pass")
+
+# COMMAND ----------
+
 import datetime
 
 expected1b = datetime.date(2020, 6, 19)
@@ -77,6 +126,17 @@ result1b = datetime_df.sort("date").first().date
 
 assert expected1b == result1b, "datetime_df does not have the expected date values"
 print("All test pass")
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC import java.sql.Date
+# MAGIC val expected1b = Date.valueOf("2020-06-19")
+# MAGIC 
+# MAGIC val result1b = datetimeDf.select(col("date")).sort("date").first.getDate(0)
+# MAGIC 
+# MAGIC assert(expected1b == result1b)
+# MAGIC println("All tests pass")
 
 # COMMAND ----------
 
@@ -90,10 +150,23 @@ print("All test pass")
 
 # COMMAND ----------
 
-# TODO
-active_users_df = (datetime_df.FILL_IN
+active_users_df = (datetime_df
+                   .groupBy("date")
+                   .agg(approx_count_distinct(col("user_id")).alias("active_users"))
+                   .orderBy("date")
 )
 display(active_users_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val activeUsersDf = datetimeDf
+# MAGIC     .groupBy("date")
+# MAGIC     .agg(approx_count_distinct(col("user_id")).alias("active_users"))
+# MAGIC     .orderBy("date")
+# MAGIC 
+# MAGIC display(activeUsersDf)
 
 # COMMAND ----------
 
@@ -113,12 +186,48 @@ print("All test pass")
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC 
+# MAGIC import org.apache.spark.sql.types._
+# MAGIC 
+# MAGIC val expected2a = StructType(List(
+# MAGIC   StructField("date", DateType, nullable=true),
+# MAGIC   StructField("active_users", LongType, nullable=false)
+# MAGIC ))
+# MAGIC 
+# MAGIC assert(expected2a == activeUsersDf.schema)
+# MAGIC println("All tests pass")
+
+# COMMAND ----------
+
 expected2b = [(datetime.date(2020, 6, 19), 251573), (datetime.date(2020, 6, 20), 357215), (datetime.date(2020, 6, 21), 305055), (datetime.date(2020, 6, 22), 239094), (datetime.date(2020, 6, 23), 243117)]
 
 result2b = [(row.date, row.active_users) for row in active_users_df.orderBy("date").take(5)]
 
 assert expected2b == result2b, "active_users_df does not have the expected values"
 print("All test pass")
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val expected2b = List(
+# MAGIC   (java.sql.Date.valueOf("2020-06-19"), 251573L),
+# MAGIC   (java.sql.Date.valueOf("2020-06-20"), 357215L),
+# MAGIC   (java.sql.Date.valueOf("2020-06-21"), 305055L),
+# MAGIC   (java.sql.Date.valueOf("2020-06-22"), 239094L),
+# MAGIC   (java.sql.Date.valueOf("2020-06-23"), 243117L)
+# MAGIC )
+# MAGIC 
+# MAGIC val result2b = activeUsersDf
+# MAGIC   .select("date", "active_users")
+# MAGIC   .orderBy("date")
+# MAGIC   .take(5)
+# MAGIC   .map(r => (r.getAs[java.sql.Date]("date"), r.getAs[Long]("active_users")))
+# MAGIC   .toList
+# MAGIC 
+# MAGIC assert(expected2b == result2b)
+# MAGIC println("All tests pass")
 
 # COMMAND ----------
 
@@ -131,7 +240,10 @@ print("All test pass")
 # COMMAND ----------
 
 # TODO
-active_dow_df = (active_users_df.FILL_IN
+active_dow_df = (active_users_df
+                 .withColumn("day", date_format(col("date"), "E"))
+                 .groupBy("day")
+                 .agg(avg(col("active_users")).alias("avg_users"))
 )
 display(active_dow_df)
 
