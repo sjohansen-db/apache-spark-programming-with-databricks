@@ -35,6 +35,17 @@ display(events_df)
 
 # COMMAND ----------
 
+print(events_path)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val eventsPath = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/datasets/events/events.delta"
+# MAGIC val eventsDf = spark.read.format("delta").load(eventsPath)
+# MAGIC display(eventsDf)
+
+# COMMAND ----------
+
 # MAGIC %md ## Column Expressions
 # MAGIC 
 # MAGIC A <a href="https://spark.apache.org/docs/latest/api/python/reference/api/pyspark.sql.Column.html" target="_blank">Column</a> is a logical construction that will be computed based on the data in a DataFrame using an expression
@@ -51,6 +62,16 @@ print(col("device"))
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC import org.apache.spark.sql.functions._
+# MAGIC import org.apache.spark.sql.Column
+# MAGIC 
+# MAGIC println(eventsDf.col("device"))
+# MAGIC println(eventsDf("device"))
+# MAGIC println(col("device"))
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC Scala supports an additional syntax for creating a new Column based on existing columns in a DataFrame
 
@@ -58,6 +79,11 @@ print(col("device"))
 
 # MAGIC %scala
 # MAGIC $"device"
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC eventsDf.select('device)
 
 # COMMAND ----------
 
@@ -84,6 +110,13 @@ col("event_timestamp").desc()
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC col("ecommerce.purchase_revenue_in_usd") + col("ecommerce.total_item_quantity")
+# MAGIC col("event_timestamp").desc
+# MAGIC (col("ecommerce.purchase_revenue_in_usd") * 100).cast("int")
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC Here's an example of using these column expressions in the context of a DataFrame
 
@@ -97,6 +130,17 @@ rev_df = (events_df
         )
 
 display(rev_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val revDf = eventsDf
+# MAGIC   .filter(col("ecommerce.purchase_revenue_in_usd").isNotNull)
+# MAGIC   .withColumn("purchase_revenue", (col("ecommerce.purchase_revenue_in_usd") * 100).cast("int"))
+# MAGIC   .withColumn("avg_purchase_revenue", col("ecommerce.purchase_revenue_in_usd") / col("ecommerce.total_item_quantity"))
+# MAGIC   .sort(col("avg_purchase_revenue").desc)
+# MAGIC 
+# MAGIC display(revDf)
 
 # COMMAND ----------
 
@@ -130,6 +174,12 @@ display(devices_df)
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC val devicesDf = eventsDf.select("user_id", "device")
+# MAGIC display(devicesDf)
+
+# COMMAND ----------
+
 from pyspark.sql.functions import col
 
 locations_df = events_df.select(
@@ -141,6 +191,19 @@ display(locations_df)
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC import org.apache.spark.sql.functions._
+# MAGIC 
+# MAGIC val locationsDf = eventsDf.select(
+# MAGIC   col("user_id"),
+# MAGIC   col("geo.city").alias("city"),
+# MAGIC   col("geo.state").as("state")
+# MAGIC )
+# MAGIC 
+# MAGIC display(locationsDf)
+
+# COMMAND ----------
+
 # MAGIC %md #### **`selectExpr()`**
 # MAGIC Selects a list of SQL expressions
 
@@ -148,6 +211,17 @@ display(locations_df)
 
 apple_df = events_df.selectExpr("user_id", "device in ('macOS', 'iOS') as apple_user")
 display(apple_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val appleDf = eventsDf
+# MAGIC   .selectExpr(
+# MAGIC     "user_id",
+# MAGIC     "device in ('macOS', 'iOS') as apple_user"
+# MAGIC   )
+# MAGIC 
+# MAGIC display(appleDf)
 
 # COMMAND ----------
 
@@ -163,9 +237,22 @@ display(anonymous_df)
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC val anonymousDf = eventsDf.drop("user_id", "geo", "device")
+# MAGIC display(anonymousDf)
+
+# COMMAND ----------
+
 no_sales_df = events_df.drop(col("ecommerce"))
 display(no_sales_df)
 
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val noSalesDf = eventsDf.drop(col("ecommerce"))
+# MAGIC 
+# MAGIC display(noSalesDf)
 
 # COMMAND ----------
 
@@ -185,8 +272,31 @@ display(mobile_df)
 
 # COMMAND ----------
 
+mobile_df.groupBy("mobile").count().show()
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val mobileDf = eventsDf.withColumn("mobile", col("device").isin("iOS", "Android"))
+# MAGIC 
+# MAGIC display(mobileDf)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC mobileDf.groupBy("mobile").count.show
+
+# COMMAND ----------
+
 purchase_quantity_df = events_df.withColumn("purchase_quantity", col("ecommerce.total_item_quantity").cast("int"))
 purchase_quantity_df.printSchema()
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val purchaseQuantityDf = eventsDf.withColumn("purchase_quantity", col("ecommerce.total_item_quantity").cast("int"))
+# MAGIC 
+# MAGIC purchaseQuantityDf.select("purchase_quantity").printSchema
 
 # COMMAND ----------
 
@@ -197,6 +307,12 @@ purchase_quantity_df.printSchema()
 
 location_df = events_df.withColumnRenamed("geo", "location")
 display(location_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val locationDf = eventsDf.withColumnRenamed("geo","location")
+# MAGIC display(locationDf)
 
 # COMMAND ----------
 
@@ -217,13 +333,38 @@ display(purchases_df)
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC val purchasesDf = eventsDf.filter("ecommerce.total_item_quantity > 0")
+# MAGIC display(purchasesDf)
+
+# COMMAND ----------
+
 revenue_df = events_df.filter(col("ecommerce.purchase_revenue_in_usd").isNotNull())
 display(revenue_df)
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC val revenueDf = eventsDf.filter(col("ecommerce.purchase_revenue_in_usd").isNotNull)
+# MAGIC 
+# MAGIC display(revenueDf)
+
+# COMMAND ----------
+
 android_df = events_df.filter((col("traffic_source") != "direct") & (col("device") == "Android"))
 display(android_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val colFilter = (col("traffic_source") =!= lit("direct")) && (col("device") === lit("Android"))
+# MAGIC val androidDf = eventsDf.where(colFilter)
+# MAGIC display(androidDf)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC col("traffic_source") =!= "direct"
 
 # COMMAND ----------
 
@@ -238,8 +379,18 @@ display(events_df.distinct())
 
 # COMMAND ----------
 
+events_df.distinct().explain(mode="formatted")
+
+# COMMAND ----------
+
 distinct_users_df = events_df.dropDuplicates(["user_id"])
 display(distinct_users_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val distinctUsersDf = eventsDf.dropDuplicates("user_id")
+# MAGIC display(distinctUsersDf)
 
 # COMMAND ----------
 
@@ -282,6 +433,11 @@ display(increase_sessions_df)
 
 decrease_sessions_df = events_df.sort(col("user_first_touch_timestamp").desc(), col("event_timestamp"))
 display(decrease_sessions_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC col("user_first_touch_timestamp").desc_nulls_first
 
 # COMMAND ----------
 

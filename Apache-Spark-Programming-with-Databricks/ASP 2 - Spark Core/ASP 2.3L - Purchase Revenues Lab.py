@@ -33,14 +33,35 @@ display(events_df)
 
 # COMMAND ----------
 
+print(events_path)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val eventsPath = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/datasets/events/events.delta"
+# MAGIC val eventsDf = spark.read.format("delta").load(eventsPath)
+# MAGIC display(eventsDf)
+
+# COMMAND ----------
+
 # MAGIC %md ### 1. Extract purchase revenue for each event
 # MAGIC Add new column **`revenue`** by extracting **`ecommerce.purchase_revenue_in_usd`**
 
 # COMMAND ----------
 
-# TODO
-revenue_df = events_df.FILL_IN
+from pyspark.sql.functions import *
+
+revenue_df = events_df.withColumn("revenue", col("ecommerce.purchase_revenue_in_usd"))
 display(revenue_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC import org.apache.spark.sql.functions._
+# MAGIC 
+# MAGIC 
+# MAGIC val revenueDf = eventsDf.withColumn("revenue", col("ecommerce.purchase_revenue_in_usd"))
+# MAGIC display(revenueDf)
 
 # COMMAND ----------
 
@@ -57,14 +78,28 @@ print("All test pass")
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC val expected1 = "5830.0, 5485.0, 5289.0, 5219.1, 5180.0, 5175.0, 5125.0, 5030.0, 4985.0, 4985.0".split(""",\s*""").map(_.toDouble).toList
+# MAGIC val result1 = revenueDf.sort(col("revenue").desc_nulls_last).select(col("revenue")).limit(10).collect.map(_.getDouble(0)).toList
+# MAGIC 
+# MAGIC assert(expected1 == result1)
+# MAGIC println("All tests pass")
+
+# COMMAND ----------
+
 # MAGIC %md ### 2. Filter events where revenue is not null
 # MAGIC Filter for records where **`revenue`** is not **`null`**
 
 # COMMAND ----------
 
-# TODO
-purchases_df = revenue_df.FILL_IN
+purchases_df = revenue_df.filter(col("revenue").isNotNull())
 display(purchases_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val purchasesDf = revenueDf.filter(col("reveneu").isNotNull)
+# MAGIC display(purchasesDf)
 
 # COMMAND ----------
 
@@ -77,6 +112,12 @@ print("All test pass")
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC assert(purchasesDf.where(col("revenue").isNull).count == 0)
+# MAGIC println("All tests pass")
+
+# COMMAND ----------
+
 # MAGIC %md ### 3. Check what types of events have revenue
 # MAGIC Find unique **`event_name`** values in **`purchases_df`** in one of two ways:
 # MAGIC - Select "event_name" and get distinct records
@@ -86,9 +127,13 @@ print("All test pass")
 
 # COMMAND ----------
 
-# TODO
-distinct_df = purchases_df.FILL_IN
+distinct_df = purchases_df.select("event_name").distinct()
 display(distinct_df)
+
+# COMMAND ----------
+
+distinct_df2 = purchases_df.dropDuplicates(["event_name"]).select(col("event_name"))
+display(distinct_df2)
 
 # COMMAND ----------
 
@@ -98,8 +143,7 @@ display(distinct_df)
 
 # COMMAND ----------
 
-# TODO
-final_df = purchases_df.FILL_IN
+final_df = purchases_df.drop("event_name")
 display(final_df)
 
 # COMMAND ----------
@@ -116,13 +160,32 @@ print("All test pass")
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC val finalDf = purchasesDf.drop("event_name")
+# MAGIC 
+# MAGIC display(finalDf)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val expectedColumns = List("device", "ecommerce", "event_previous_timestamp", "event_timestamp",
+# MAGIC                     "geo", "items", "revenue", "traffic_source",
+# MAGIC                     "user_first_touch_timestamp", "user_id")
+# MAGIC 
+# MAGIC assert(finalDf.columns.toList.sorted == expectedColumns.sorted)
+# MAGIC println("All tests pass")
+
+# COMMAND ----------
+
 # MAGIC %md ### 5. Chain all the steps above excluding step 3
 
 # COMMAND ----------
 
 # TODO
 final_df = (events_df
-  .FILL_IN
+            .withColumn("revenue", col("ecommerce.purchase_revenue_in_usd"))
+            .filter(col("revenue").isNotNull())
+            .drop("event_name")
 )
 
 display(final_df)
