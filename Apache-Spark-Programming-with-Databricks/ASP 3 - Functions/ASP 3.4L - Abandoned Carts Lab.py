@@ -39,15 +39,57 @@ display(sales_df)
 
 # COMMAND ----------
 
+print(sales_path)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val salesPath = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/datasets/sales/sales.delta"
+# MAGIC 
+# MAGIC val salesDf = spark.read.format("delta").load(salesPath)
+# MAGIC 
+# MAGIC display(salesDf)
+
+# COMMAND ----------
+
 # user IDs and emails at BedBricks
 users_df = spark.read.format("delta").load(users_path)
 display(users_df)
 
 # COMMAND ----------
 
+print(users_path)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val usersPath = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/datasets/users/users.delta"
+# MAGIC 
+# MAGIC val usersDf = spark.read.format("delta").load(usersPath)
+# MAGIC 
+# MAGIC display(usersDf)
+
+# COMMAND ----------
+
 # events logged on the BedBricks website
 events_df = spark.read.format("delta").load(events_path)
 display(events_df)
+
+# COMMAND ----------
+
+print(events_path)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val eventsPath = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/datasets/events/events.delta"
+# MAGIC 
+# MAGIC val eventsDf = spark.read.format("delta").load(eventsPath)
+# MAGIC 
+# MAGIC display(eventsDf)
 
 # COMMAND ----------
 
@@ -59,12 +101,27 @@ display(events_df)
 
 # COMMAND ----------
 
-# TODO
 from pyspark.sql.functions import *
 
-converted_users_df = (sales_df.FILL_IN
+converted_users_df = (sales_df
+                      .select(col("email"))
+                      .dropDuplicates().withColumn("converted", lit(True))
                      )
+
 display(converted_users_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC import org.apache.spark.sql.functions._
+# MAGIC 
+# MAGIC val convertedUsersDf = salesDf
+# MAGIC   .select(col("email"))
+# MAGIC   .dropDuplicates
+# MAGIC   .withColumn("converted", lit(true))
+# MAGIC 
+# MAGIC display(convertedUsersDf)
 
 # COMMAND ----------
 
@@ -87,6 +144,20 @@ print("All test pass")
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC 
+# MAGIC val expectedColumns = List("email", "converted")
+# MAGIC 
+# MAGIC val expectedCount = 210370
+# MAGIC 
+# MAGIC assert(convertedUsersDf.columns.toList == expectedColumns)
+# MAGIC assert(convertedUsersDf.count == expectedCount)
+# MAGIC assert(convertedUsersDf.select(col("converted")).first.getBoolean(0) == true)
+# MAGIC 
+# MAGIC print("All tests pass")
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### 2: Join emails with user IDs
 # MAGIC - Perform an outer join on **`converted_users_df`** and **`users_df`** with the **`email`** field
@@ -97,10 +168,22 @@ print("All test pass")
 
 # COMMAND ----------
 
-# TODO
-conversions_df = (users_df.FILL_IN
+conversions_df = (users_df
+                  .join(converted_users_df, ['email'], "fullouter")
+                  .filter(col('email').isNotNull())
+                  .na.fill(False, ['converted'])
                  )
 display(conversions_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val conversionsDf = usersDf
+# MAGIC   .join(convertedUsersDf, List("email"), "fullouter")
+# MAGIC   .filter(col("email").isNotNull)
+# MAGIC   .na.fill(false, List("converted"))
+# MAGIC 
+# MAGIC display(conversionsDf)
 
 # COMMAND ----------
 
@@ -127,6 +210,21 @@ print("All test pass")
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC 
+# MAGIC val expectedColumns = List("email", "user_id", "user_first_touch_timestamp", "converted")
+# MAGIC val expectedCount = 782749L
+# MAGIC val expectedFalseCount = 572379L
+# MAGIC 
+# MAGIC assert(conversionsDf.columns.toList == expectedColumns)
+# MAGIC assert(conversionsDf.filter(col("email").isNull).count == 0L)
+# MAGIC assert(conversionsDf.count == expectedCount)
+# MAGIC assert(conversionsDf.filter(col("converted") === false).count == expectedFalseCount)
+# MAGIC 
+# MAGIC println("All tests pass")
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### 3: Get cart item history for each user
 # MAGIC - Explode the **`items`** field in **`events_df`** with the results replacing the existing **`items`** field
@@ -137,10 +235,23 @@ print("All test pass")
 
 # COMMAND ----------
 
-# TODO
-carts_df = (events_df.FILL_IN
+carts_df = (events_df
+            .withColumn("items", explode(col("items")))
+            .groupBy("user_id")
+            .agg(collect_set("items.item_id").alias("cart"))
 )
 display(carts_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val cartsDf = eventsDf
+# MAGIC   .withColumn("items", explode(col("items")))
+# MAGIC   .groupBy("user_id")
+# MAGIC   .agg(collect_set("items.item_id").alias("cart"))
+# MAGIC 
+# MAGIC display(cartsDf)
 
 # COMMAND ----------
 
@@ -163,6 +274,19 @@ print("All test pass")
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC 
+# MAGIC val expectedColumns = List("user_id", "cart")
+# MAGIC val expectedCount = 488403L
+# MAGIC 
+# MAGIC assert(cartsDf.columns.toList == expectedColumns)
+# MAGIC assert(cartsDf.count == expectedCount)
+# MAGIC assert(cartsDf.select(col("user_id")).dropDuplicates.count == expectedCount)
+# MAGIC 
+# MAGIC println("All tests pass")
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### 4: Join cart item history with emails
 # MAGIC - Perform a left join on **`conversions_df`** and **`carts_df`** on the **`user_id`** field
@@ -171,9 +295,16 @@ print("All test pass")
 
 # COMMAND ----------
 
-# TODO
-email_carts_df = conversions_df.FILL_IN
+email_carts_df = conversions_df.join(carts_df, ['user_id'], 'left')
 display(email_carts_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val emailCartsDf = conversionsDf.join(cartsDf, List("user_id"), "left")
+# MAGIC 
+# MAGIC display(emailCartsDf)
 
 # COMMAND ----------
 
@@ -198,6 +329,20 @@ print("All test pass")
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC 
+# MAGIC val expectedColumns = List("user_id", "email", "user_first_touch_timestamp", "converted", "cart")
+# MAGIC val expectedCount = 782749L
+# MAGIC val expectedCartNullCount = 397799L
+# MAGIC 
+# MAGIC assert(emailCartsDf.columns.toList == expectedColumns)
+# MAGIC assert(emailCartsDf.count == expectedCount)
+# MAGIC assert(emailCartsDf.filter(col("cart").isNull).count == expectedCartNullCount)
+# MAGIC 
+# MAGIC println("All tests pass")
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### 5: Filter for emails with abandoned cart items
 # MAGIC - Filter **`email_carts_df`** for users where **`converted`** is False
@@ -207,10 +352,17 @@ print("All test pass")
 
 # COMMAND ----------
 
-# TODO
-abandoned_carts_df = (email_carts_df.FILL_IN
+abandoned_carts_df = (email_carts_df
+                      .filter((col("converted") == False) & col("cart").isNotNull())
 )
 display(abandoned_carts_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val abandonedCartsDf = emailCartsDf.filter(col("converted") === false && col("cart").isNotNull)
+# MAGIC 
+# MAGIC display(abandonedCartsDf)
 
 # COMMAND ----------
 
@@ -231,16 +383,41 @@ print("All test pass")
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC 
+# MAGIC val expectedColumns = List("user_id", "email", "user_first_touch_timestamp", "converted", "cart")
+# MAGIC val expectedCount = 204272L
+# MAGIC 
+# MAGIC assert(abandonedCartsDf.columns.toList == expectedColumns)
+# MAGIC assert(abandonedCartsDf.count == expectedCount)
+# MAGIC 
+# MAGIC println("All tests pass")
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### 6: Bonus Activity
 # MAGIC Plot number of abandoned cart items by product
 
 # COMMAND ----------
 
-# TODO
-abandoned_items_df = (abandoned_carts_df.FILL_IN
+abandoned_items_df = (abandoned_carts_df
+                      .select(explode(col("cart")).alias("items"))
+                      .groupBy("items")
+                      .count()
                      )
 display(abandoned_items_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val abandonedItemsDf = abandonedCartsDf
+# MAGIC   .select(explode(col("cart")).alias("items"))
+# MAGIC   .groupBy("items")
+# MAGIC   .count
+# MAGIC 
+# MAGIC display(abandonedItemsDf)
 
 # COMMAND ----------
 
@@ -262,6 +439,18 @@ assert abandoned_items_df.count() == expected_count, "Counts do not match"
 
 assert abandoned_items_df.columns == expected_columns, "Columns do not match"
 print("All test pass")
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val expectedColumns = List("items", "count")
+# MAGIC val expectedCount = 12L
+# MAGIC 
+# MAGIC assert(abandonedItemsDf.count == expectedCount)
+# MAGIC assert(abandonedItemsDf.columns.toList == expectedColumns)
+# MAGIC 
+# MAGIC println("All tests pass")
 
 # COMMAND ----------
 

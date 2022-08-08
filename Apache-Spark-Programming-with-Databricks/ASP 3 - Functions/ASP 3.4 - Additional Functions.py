@@ -38,6 +38,20 @@ display(sales_df)
 
 # COMMAND ----------
 
+print(sales_path)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val salesPath = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/datasets/sales/sales.delta"
+# MAGIC 
+# MAGIC val salesDf = spark.read.format("delta").load(salesPath)
+# MAGIC 
+# MAGIC display(salesDf)
+
+# COMMAND ----------
+
 # MAGIC %md ### Non-aggregate and Miscellaneous Functions
 # MAGIC Here are a few additional non-aggregate and miscellaneous built-in functions.
 # MAGIC 
@@ -60,11 +74,33 @@ display(gmail_accounts)
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC import org.apache.spark.sql.functions._
+# MAGIC 
+# MAGIC val gmailAccounts = salesDf.filter(col("email").contains("gmail"))
+# MAGIC 
+# MAGIC display(gmailAccounts)
+
+# COMMAND ----------
+
 # MAGIC %md **`lit`** can be used to create a column out of a value, which is useful for appending columns.  
 
 # COMMAND ----------
 
 display(gmail_accounts.select("email", lit(True).alias("gmail user")))
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val trueGmailUsers = gmailAccounts
+# MAGIC   .select(
+# MAGIC     col("email"),
+# MAGIC     lit(true).alias("gmail user"),
+# MAGIC     rand().alias("rando")
+# MAGIC   ).withColumn("big_rando", col("rando") > lit(0.5))
+# MAGIC 
+# MAGIC display(trueGmailUsers)
 
 # COMMAND ----------
 
@@ -101,11 +137,26 @@ print(sales_exploded_df.select("items.coupon").na.drop().count())
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC 
+# MAGIC val salesExplodedDf = salesDf.withColumn("items", explode(col("items")))
+# MAGIC 
+# MAGIC val countItemsCoupon = salesExplodedDf.select("items.coupon").count
+# MAGIC val countItemsCouponDropNa = salesExplodedDf.select("items.coupon").na.drop.count
+
+# COMMAND ----------
+
 # MAGIC %md We can fill in the missing coupon codes with **`na.fill`**
 
 # COMMAND ----------
 
 display(sales_exploded_df.select("items.coupon").na.fill("NO COUPON"))
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC display(salesExplodedDf.select("items.coupon").na.fill("NO COUPON").groupBy("coupon").count)
 
 # COMMAND ----------
 
@@ -138,8 +189,30 @@ display(users_df)
 
 # COMMAND ----------
 
+print(users_path)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val usersPath = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/datasets/users/users.delta"
+# MAGIC 
+# MAGIC val usersDf = spark.read.format("delta").load(usersPath)
+# MAGIC 
+# MAGIC display(usersDf)
+
+# COMMAND ----------
+
 joined_df = gmail_accounts.join(other=users_df, on='email', how = "inner")
 display(joined_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val joinedDf = gmailAccounts.join(usersDf, gmailAccounts("email") === usersDf("email"), "inner")
+# MAGIC 
+# MAGIC display(joinedDf)
 
 # COMMAND ----------
 
