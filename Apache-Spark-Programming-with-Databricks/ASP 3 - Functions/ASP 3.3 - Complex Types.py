@@ -39,6 +39,21 @@ display(df)
 
 # COMMAND ----------
 
+print(sales_path)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC import org.apache.spark.sql.functions._
+# MAGIC 
+# MAGIC val salesPath = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/datasets/sales/sales.delta"
+# MAGIC val df = spark.read.format("delta").load(salesPath)
+# MAGIC 
+# MAGIC display(df)
+
+# COMMAND ----------
+
 # You will need this DataFrame for a later exercise
 details_df = (df
               .withColumn("items", explode("items"))
@@ -46,6 +61,18 @@ details_df = (df
               .withColumn("details", split(col("item_name"), " "))
              )
 display(details_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val detailsDf = df
+# MAGIC   .withColumn("items", explode(col("items")))
+# MAGIC //   .where("order_id = 257473")
+# MAGIC   .select("email", "items.item_name")
+# MAGIC   .withColumn("details", split(col("item_name"), " "))
+# MAGIC 
+# MAGIC display(detailsDf)
 
 # COMMAND ----------
 
@@ -76,6 +103,14 @@ display(df.select(split(df.email, '@', 0).alias('email_handle')))
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC 
+# MAGIC display(
+# MAGIC   df.select(split($"email", "@", 0).alias("email_handle"))
+# MAGIC )
+
+# COMMAND ----------
+
 # MAGIC %md ### Collection Functions
 # MAGIC 
 # MAGIC Here are some of the built-in functions available for working with arrays.
@@ -93,6 +128,16 @@ mattress_df = (details_df
                .filter(array_contains(col("details"), "Mattress"))
                .withColumn("size", element_at(col("details"), 2)))
 display(mattress_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val mattressDf = detailsDf
+# MAGIC   .filter(array_contains(col("details"), "Mattress"))
+# MAGIC   .withColumn("size", element_at(col("details"), 2))
+# MAGIC 
+# MAGIC display(mattressDf)
 
 # COMMAND ----------
 
@@ -117,6 +162,14 @@ display(size_df)
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC 
+# MAGIC val sizeDf = mattressDf.groupBy("email").agg(collect_set("size").alias("size options"))
+# MAGIC 
+# MAGIC display(sizeDf)
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC 
 # MAGIC ##Union and unionByName
@@ -127,6 +180,12 @@ display(size_df)
 # COMMAND ----------
 
 mattress_df.schema==size_df.schema
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC mattressDf.schema == sizeDf.schema
 
 # COMMAND ----------
 
@@ -141,6 +200,17 @@ mattress_count = mattress_df.count()
 size_count = size_df.count()
 
 mattress_count + size_count == union_count
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val unionCount = mattressDf.select("email").union(sizeDf.select("email")).count
+# MAGIC 
+# MAGIC val mattressCount = mattressDf.count
+# MAGIC val sizeCount = sizeDf.count
+# MAGIC 
+# MAGIC assert(mattressCount + sizeCount == unionCount)
 
 # COMMAND ----------
 

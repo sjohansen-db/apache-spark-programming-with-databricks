@@ -20,6 +20,21 @@ display(df)
 
 # COMMAND ----------
 
+print(sales_path)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC import org.apache.spark.sql.functions._
+# MAGIC 
+# MAGIC val salesPath = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/datasets/sales/sales.delta"
+# MAGIC val df = spark.read.format("delta").load(salesPath)
+# MAGIC 
+# MAGIC display(df)
+
+# COMMAND ----------
+
 # MAGIC %md ### 1. Extract item details from purchases
 # MAGIC 
 # MAGIC - Explode the **`items`** field in **`df`** with the results replacing the existing **`items`** field
@@ -30,16 +45,25 @@ display(df)
 
 # COMMAND ----------
 
-# TODO
-
 from pyspark.sql.functions import *
 
 details_df = (df
-              .withColumn("items", FILL_IN("items"))
-              .FILL_IN("email", "items.item_name")
-              .withColumn("details", FILL_IN(col("item_name"), " "))
+              .withColumn("items", explode("items"))
+              .select("email", "items.item_name")
+              .withColumn("details", split(col("item_name"), " "))
              )
 display(details_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val detailsDf = df
+# MAGIC   .withColumn("items", explode(col("items")))
+# MAGIC   .select("email", "items.item_name")
+# MAGIC   .withColumn("details", split(col("item_name"), " "))
+# MAGIC 
+# MAGIC display(detailsDf)
 
 # COMMAND ----------
 
@@ -57,14 +81,23 @@ display(details_df)
 
 # COMMAND ----------
 
-# TODO
-
 mattress_df = (details_df
-               .FILL_IN(array_contains(col("details"), "Mattress"))
-               .withColumn("size", element_at(col("details"), FILL_IN))
-               .withColumn("quality", FILL_IN(col("details"), 1))
+               .filter(array_contains(col("details"), "Mattress"))
+               .withColumn("size", element_at(col("details"), 2))
+               .withColumn("quality", element_at(col("details"), 1))
               )
 display(mattress_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val mattressDf = detailsDf
+# MAGIC   .where(array_contains(col("details"), "Mattress"))
+# MAGIC   .withColumn("size", element_at(col("details"), 2))
+# MAGIC   .withColumn("quality", element_at(col("details"), 1))
+# MAGIC 
+# MAGIC display(mattressDf)
 
 # COMMAND ----------
 
@@ -83,14 +116,23 @@ display(mattress_df)
 
 # COMMAND ----------
 
-# TODO
-
 pillow_df = (details_df
-             .FILL_IN(array_contains(col("details"), "Pillow"))
-             .withColumn("size", FILL_IN(col("details"), 1))
-             .FILL_IN("quality", FILL_IN(col("details"), 2))
+             .filter(array_contains(col("details"), "Pillow"))
+             .withColumn("size", element_at(col("details"), 1))
+             .withColumn("quality", element_at(col("details"), 2))
             )
 display(pillow_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val pillowDf = detailsDf
+# MAGIC   .where(array_contains(col("details"), "Pillow"))
+# MAGIC   .withColumn("size", element_at(col("details"), 1))
+# MAGIC   .withColumn("quality", element_at(col("details"), 2))
+# MAGIC 
+# MAGIC display(pillowDf)
 
 # COMMAND ----------
 
@@ -103,10 +145,16 @@ display(pillow_df)
 
 # COMMAND ----------
 
-# TODO
-
-union_df = mattress_df.FILL_IN(pillow_df).FILL_IN("details")
+union_df = mattress_df.unionByName(pillow_df).drop("details")
 display(union_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val unionDf = mattressDf.unionByName(pillowDf).drop(col("details"))
+# MAGIC 
+# MAGIC display(unionDf)
 
 # COMMAND ----------
 
@@ -121,14 +169,25 @@ display(union_df)
 
 # COMMAND ----------
 
-# TODO
-
 options_df = (union_df
-              .FILL_IN("email")
-              .agg(FILL_IN("size").alias("size options"),
-                   FILL_IN("quality").alias("quality options"))
+              .groupBy("email")
+              .agg(collect_set("size").alias("size options"),
+                   collect_set("quality").alias("quality options"))
              )
 display(options_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val optionsDf = unionDf
+# MAGIC   .groupBy("email")
+# MAGIC   .agg(
+# MAGIC     collect_set(col("size")).alias("size options"),
+# MAGIC     collect_set(col("quality").alias("quality options"))
+# MAGIC   )
+# MAGIC   
+# MAGIC display(optionsDf)
 
 # COMMAND ----------
 
