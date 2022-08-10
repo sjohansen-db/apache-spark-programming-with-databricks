@@ -47,6 +47,18 @@ display(sales_df)
 
 # COMMAND ----------
 
+print(sales_path)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val salesPath = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/datasets/sales/sales.delta"
+# MAGIC 
+# MAGIC val salesDf = spark.read.format("delta").load(salesPath)
+# MAGIC display(salesDf)
+
+# COMMAND ----------
+
 # MAGIC %md ### Define a function
 # MAGIC 
 # MAGIC Define a function (on the driver) to get the first letter of a string from the **`email`** field.
@@ -57,6 +69,17 @@ def first_letter_function(email):
     return email[0]
 
 first_letter_function("annagray@kaufman.com")
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC def firstLetter(s: String): Option[Char] =
+# MAGIC   Option(s).flatMap(_.headOption)
+# MAGIC 
+# MAGIC 
+# MAGIC val email = "annagray@kaufman.com"
+# MAGIC 
+# MAGIC firstLetter(email).getOrElse(' ')
 
 # COMMAND ----------
 
@@ -79,6 +102,28 @@ display(sales_df.select(first_letter_udf(col("email"))))
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC import org.apache.spark.sql.functions._
+# MAGIC import org.apache.spark.sql.expressions.UserDefinedFunction
+# MAGIC 
+# MAGIC val firstLetterUdf: UserDefinedFunction = udf[Option[String], String](firstLetter(_).map(_.toString))
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC display(
+# MAGIC   salesDf.select(firstLetterUdf(col("email")))
+# MAGIC )
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC display(salesDf.select(explode(col("items")).alias("item")).select(col("item.coupon"), firstLetterUdf(col("item.coupon"))))
+
+# COMMAND ----------
+
 # MAGIC %md ### Register UDF to use in SQL
 # MAGIC Register the UDF using **`spark.udf.register`** to also make it available for use in the SQL namespace.
 
@@ -98,6 +143,24 @@ display(sales_df.select(first_letter_udf(col("email"))))
 # MAGIC %sql
 # MAGIC -- You can now also apply the UDF from SQL
 # MAGIC SELECT sql_udf(email) AS first_letter FROM sales
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC salesDf.createOrReplaceTempView("sales_s")
+# MAGIC 
+# MAGIC val firstLetterUdfReg = spark.udf.register("first_letter_s", (s: String) => firstLetter(s).map(_.toString))
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC WITH exploded AS (
+# MAGIC   SELECT explode(items) AS item
+# MAGIC     FROM sales_s
+# MAGIC )
+# MAGIC SELECT item.coupon                 AS coupon
+# MAGIC      , first_letter_s(item.coupon) AS first_letter_coupon
+# MAGIC   FROM exploded
 
 # COMMAND ----------
 
@@ -165,6 +228,10 @@ display(sales_df.select(vectorized_udf(col("email"))))
 
 # COMMAND ----------
 
+sales_df.select(vectorized_udf(col("email"))).explain(True)
+
+# COMMAND ----------
+
 # MAGIC %md We can also register these Pandas UDFs to the SQL namespace.
 
 # COMMAND ----------
@@ -176,6 +243,19 @@ spark.udf.register("sql_vectorized_udf", vectorized_udf)
 # MAGIC %sql
 # MAGIC -- Use the Pandas UDF from SQL
 # MAGIC SELECT sql_vectorized_udf(email) AS firstLetter FROM sales
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- what happens with nulls?
+# MAGIC 
+# MAGIC WITH exploded AS (
+# MAGIC   SELECT explode(items) AS item
+# MAGIC     FROM sales_s
+# MAGIC )
+# MAGIC SELECT item.coupon                     AS coupon
+# MAGIC      , sql_vectorized_udf(item.coupon) AS first_letter_coupon
+# MAGIC   FROM exploded
 
 # COMMAND ----------
 

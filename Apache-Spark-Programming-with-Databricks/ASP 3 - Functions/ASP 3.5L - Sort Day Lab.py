@@ -44,6 +44,30 @@ display(df)
 
 # COMMAND ----------
 
+print(events_path)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC import org.apache.spark.sql.functions._
+# MAGIC import org.apache.spark.sql.types._
+# MAGIC 
+# MAGIC val eventsPath= "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/datasets/events/events.delta"
+# MAGIC 
+# MAGIC val df = spark.read.format("delta").load(eventsPath)
+# MAGIC   .withColumn("ts", (col("event_timestamp") / 1e6).cast(TimestampType))
+# MAGIC   .withColumn("date", to_date(col("ts")))
+# MAGIC   .groupBy("date")
+# MAGIC   .agg(approx_count_distinct(col("user_id")).alias("active_users"))
+# MAGIC   .withColumn("day", date_format(col("date"), "E"))
+# MAGIC   .groupBy("day")
+# MAGIC   .agg(avg(col("active_users")).alias("avg_users"))
+# MAGIC 
+# MAGIC display(df)
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC ### 1. Define UDF to label day of week
 # MAGIC 
@@ -59,7 +83,7 @@ def label_day_of_week(day: str) -> str:
 # COMMAND ----------
 
 # TODO
-label_dow_udf = FILL_IN
+label_dow_udf = udf(label_day_of_week)
 
 # COMMAND ----------
 
@@ -71,9 +95,43 @@ label_dow_udf = FILL_IN
 # COMMAND ----------
 
 # TODO
-final_df = FILL_IN
+final_df = (df
+            .withColumn("day", label_dow_udf(col("day")))
+            .orderBy("day")
+           )
 
 display(final_df)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC def labelDayOfWeek(day: String): Option[String] = {
+# MAGIC   val dow = Map[String, String](
+# MAGIC   "Mon" -> "1",
+# MAGIC   "Tue" -> "2",
+# MAGIC   "Wed" -> "3",
+# MAGIC   "Thu" -> "4",
+# MAGIC   "Fri" -> "5",
+# MAGIC   "Sat" -> "6",
+# MAGIC   "Sun" -> "7"
+# MAGIC   )
+# MAGIC   dow.get(day).map(List(_, day).mkString("-"))
+# MAGIC }
+# MAGIC 
+# MAGIC 
+# MAGIC import org.apache.spark.sql.functions._
+# MAGIC 
+# MAGIC val labelDowUdf = udf[Option[String], String](labelDayOfWeek(_))
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val finalDf = df
+# MAGIC   .withColumn("day", labelDowUdf(col("day")))
+# MAGIC   .orderBy("day")
+# MAGIC 
+# MAGIC display(finalDf)
 
 # COMMAND ----------
 
