@@ -59,7 +59,17 @@ dbutils.fs.head(f"{datasets_dir}/people/people-with-dups.txt")
 
 # COMMAND ----------
 
-# TODO
+print(f"{datasets_dir}/people/people-with-dups.txt")
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val peoplePath = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/datasets/people/people-with-dups.txt"
+# MAGIC 
+# MAGIC dbutils.fs.head(peoplePath)
+
+# COMMAND ----------
 
 source_file = f"{datasets_dir}/people/people-with-dups.txt"
 delta_dest_dir = working_dir + "/people"
@@ -68,7 +78,32 @@ delta_dest_dir = working_dir + "/people"
 dbutils.fs.rm(delta_dest_dir, True)
 
 # Complete your work here...
+raw_df = (spark.read.format('csv')
+          .option('delimiter', ':')
+          .option('header', True)
+          .load(source_file)
+         )
 
+display(raw_df)
+
+# COMMAND ----------
+
+from pyspark.sql.functions import *
+
+norm_df = (raw_df
+           .withColumn('first_name_lower', lower(col('firstName')))
+           .withColumn('middle_name_lower', lower(col('middleName')))
+           .withColumn('last_name_lower', lower(col('lastName')))
+          )
+
+dedup_df = (norm_df
+            .dropDuplicates(['first_name_lower', 'middle_name_lower', 'last_name_lower'])
+            .drop('first_name_lower')
+            .drop('middle_name_lower')
+            .drop('last_name_lower')
+           )
+
+dedup_df.coalesce(1).write.format("delta").save(delta_dest_dir)
 
 # COMMAND ----------
 

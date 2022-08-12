@@ -34,6 +34,20 @@ display(df)
 
 # COMMAND ----------
 
+print(events_path)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val eventsPath = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/datasets/events/events.delta"
+# MAGIC 
+# MAGIC val df = spark.read.format("delta").load(eventsPath)
+# MAGIC 
+# MAGIC display(df)
+
+# COMMAND ----------
+
 # MAGIC %md ### Logical Optimization
 # MAGIC 
 # MAGIC **`explain(..)`** prints the query plans, optionally formatted by a given explain mode. Compare the following logical plan & physical plan, noting how Catalyst handled the multiple **`filter`** transformations.
@@ -54,6 +68,23 @@ limit_events_df = (df
                   )
 
 limit_events_df.explain(True)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC import org.apache.spark.sql.functions._
+# MAGIC 
+# MAGIC val limitsEventsDf = df
+# MAGIC   .filter(col("event_name") =!= "reviews")
+# MAGIC   .filter(col("event_name") =!= "checkout")
+# MAGIC   .filter(col("event_name") =!= "register")
+# MAGIC   .filter(col("event_name") =!= "email_coupon")
+# MAGIC   .filter(col("event_name") =!= "cc_info")
+# MAGIC   .filter(col("event_name") =!= "delivery")
+# MAGIC   .filter(col("event_name") =!= "shipping_info")
+# MAGIC   .filter(col("event_name") =!= "press")
+# MAGIC 
+# MAGIC limitsEventsDf.explain(true)
 
 # COMMAND ----------
 
@@ -151,6 +182,34 @@ pp_df.explain(True)
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC 
+# MAGIC val jdbcURL = "jdbc:postgresql://54.213.33.240/training"
+# MAGIC 
+# MAGIC val conn = Map[String, String](
+# MAGIC   "user" -> "training",
+# MAGIC   "password" -> "training"
+# MAGIC )
+# MAGIC 
+# MAGIC val xDf = spark.read
+# MAGIC   .format("jdbc")
+# MAGIC   .option("url", jdbcURL)
+# MAGIC   .option("dbtable", "training.people_1m")
+# MAGIC   .option("partitionColumn", "id")
+# MAGIC   .option("lowerBound", "1")
+# MAGIC   .option("upperBound", "1000000")
+# MAGIC   .option("numPartitions", "8")
+# MAGIC   .option("user", conn("user"))
+# MAGIC   .option("password", conn("password"))
+# MAGIC   .load()
+# MAGIC 
+# MAGIC val ppDf = xDf
+# MAGIC .filter(col("gender") === lit("M"))
+# MAGIC 
+# MAGIC ppDf.explain(true)
+
+# COMMAND ----------
+
 # MAGIC %md Note the lack of a **Filter** and the presence of a **PushedFilters** in the **Scan**. The filter operation is pushed to the database and only the matching records are sent to Spark. This can greatly reduce the amount of data that Spark needs to ingest.
 
 # COMMAND ----------
@@ -180,6 +239,28 @@ filtered_df.explain(True)
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC 
+# MAGIC val cachedDf = spark.read
+# MAGIC   .format("jdbc")
+# MAGIC   .option("url", jdbcURL)
+# MAGIC   .option("dbtable", "training.people_1m")
+# MAGIC   .option("partitionColumn", "id")
+# MAGIC   .option("lowerBound", "1")
+# MAGIC   .option("upperBound", "1000000")
+# MAGIC   .option("numPartitions", "8")
+# MAGIC   .option("user", conn("user"))
+# MAGIC   .option("password", conn("password"))
+# MAGIC   .load()
+# MAGIC 
+# MAGIC cachedDf.cache
+# MAGIC 
+# MAGIC val filteredDf = cachedDf.filter(col("gender") === lit("M"))
+# MAGIC 
+# MAGIC filteredDf.explain(true)
+
+# COMMAND ----------
+
 # MAGIC %md In addition to the **Scan** (the JDBC read) we saw in the previous example, here we also see the **InMemoryTableScan** followed by a **Filter** in the explain plan.
 # MAGIC 
 # MAGIC This means Spark had to read ALL the data from the database and cache it, and then scan it in cache to find the records matching the filter condition.
@@ -192,6 +273,12 @@ filtered_df.explain(True)
 # COMMAND ----------
 
 cached_df.unpersist()
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC cachedDf.unpersist
 
 # COMMAND ----------
 

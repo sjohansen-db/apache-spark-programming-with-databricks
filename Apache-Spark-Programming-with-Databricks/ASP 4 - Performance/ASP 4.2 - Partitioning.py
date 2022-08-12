@@ -38,6 +38,37 @@ df.rdd.getNumPartitions()
 
 # COMMAND ----------
 
+print(events_path)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC val eventsPath = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/datasets/events/events.delta"
+# MAGIC 
+# MAGIC val df = spark.read.format("delta").load(eventsPath)
+# MAGIC 
+# MAGIC df.rdd.getNumPartitions
+
+# COMMAND ----------
+
+from delta.tables import *
+
+display(
+  DeltaTable.forPath(spark, events_path).history()
+)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC import io.delta.tables._
+# MAGIC 
+# MAGIC display(
+# MAGIC   DeltaTable.forPath(spark, eventsPath).history
+# MAGIC )
+
+# COMMAND ----------
+
 # MAGIC %md Access **`SparkContext`** through **`SparkSession`** to get the number of cores or slots.
 # MAGIC 
 # MAGIC Use the **`defaultParallelism`** attribute to get the number of cores in a cluster.
@@ -97,6 +128,10 @@ coalesce_df = df.coalesce(8)
 # COMMAND ----------
 
 coalesce_df.rdd.getNumPartitions()
+
+# COMMAND ----------
+
+coalesce_df.count()
 
 # COMMAND ----------
 
