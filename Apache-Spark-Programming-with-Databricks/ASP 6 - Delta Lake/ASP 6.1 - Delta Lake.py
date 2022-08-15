@@ -38,6 +38,20 @@ display(events_df)
 
 # COMMAND ----------
 
+print(datasets_dir)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val datasetsDir = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/datasets"
+# MAGIC 
+# MAGIC val eventsDf = spark.read.format("parquet").load(s"${datasetsDir}/events/events.parquet")
+# MAGIC 
+# MAGIC display(eventsDf)
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC Write the data in Delta format to the directory given by **`delta_path`**.
 
@@ -48,12 +62,39 @@ events_df.write.format("delta").mode("overwrite").save(delta_path)
 
 # COMMAND ----------
 
+print(working_dir)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC import org.apache.spark.sql.SaveMode
+# MAGIC 
+# MAGIC val workingDir = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/asp_6_1_delta_lake"
+# MAGIC val deltaPath = s"${workingDir}/delta-events-s"
+# MAGIC 
+# MAGIC eventsDf.write.format("delta").mode(SaveMode.Overwrite).save(deltaPath)
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC Write the data in Delta format as a managed table in the metastore.
 
 # COMMAND ----------
 
 events_df.write.format("delta").mode("overwrite").saveAsTable("delta_events")
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC eventsDf.write.format("delta").mode(SaveMode.Overwrite).saveAsTable("delta_events_s")
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC 
+# MAGIC SHOW TABLES;
 
 # COMMAND ----------
 
@@ -68,6 +109,24 @@ from pyspark.sql.functions import col
 state_events_df = events_df.withColumn("state", col("geo.state"))
 
 state_events_df.write.format("delta").mode("overwrite").partitionBy("state").option("overwriteSchema", "true").save(delta_path)
+
+# COMMAND ----------
+
+print(delta_path)
+
+# COMMAND ----------
+
+# MAGIC %fs ls dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/asp_6_1_delta_lake/delta-events
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC import org.apache.spark.sql.functions._
+# MAGIC 
+# MAGIC val stateEventsDf = eventsDf.withColumn("state", col("geo.state"))
+# MAGIC 
+# MAGIC stateEventsDf.write.format("delta").mode(SaveMode.Overwrite).partitionBy("state").option("overwriteSchema", "true").save(deltaPath)
 
 # COMMAND ----------
 
@@ -143,6 +202,13 @@ display(df)
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC 
+# MAGIC val df = spark.read.format("delta").load(deltaPath)
+# MAGIC display(df)
+
+# COMMAND ----------
+
 # MAGIC %md ### Update your Delta Table
 # MAGIC 
 # MAGIC Let's filter for rows where the event takes place on a mobile device.
@@ -154,7 +220,21 @@ display(df_update)
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC 
+# MAGIC val dfUpdate = stateEventsDf.filter(col("device").isin("Android", "iOS"))
+# MAGIC 
+# MAGIC display(dfUpdate)
+
+# COMMAND ----------
+
 df_update.write.format("delta").mode("overwrite").save(delta_path)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC dfUpdate.write.format("delta").mode(SaveMode.Overwrite).save(deltaPath)
 
 # COMMAND ----------
 
@@ -206,9 +286,7 @@ display(df)
 
 # COMMAND ----------
 
-# TODO
-
-time_stamp_string = <FILL_IN>
+time_stamp_string = '2022-08-15T06:13:21.000+0000'
 df = spark.read.format("delta").option("timestampAsOf", time_stamp_string).load(delta_path)
 display(df)
 

@@ -26,13 +26,34 @@ delta_sales_path = working_dir + "/delta-sales"
 
 # COMMAND ----------
 
+print(datasets_dir, working_dir)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val datasetsDir = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/datasets"
+# MAGIC val workingDir = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/asp_6_1l_delta_lake_lab"
+# MAGIC 
+# MAGIC val salesDf = spark.read.parquet(s"${datasetsDir}/sales/sales.parquet")
+# MAGIC val deltaSalesPath = s"${workingDir}/delta-sales-s"
+
+# COMMAND ----------
+
 # MAGIC %md ### 1. Write sales data to Delta
 # MAGIC Write **`sales_df`** to **`delta_sales_path`**
 
 # COMMAND ----------
 
-# TODO
-sales_df.FILL_IN
+sales_df.write.format("delta").mode("overwrite").save(delta_sales_path)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC import org.apache.spark.sql.SaveMode
+# MAGIC 
+# MAGIC salesDf.write.format("delta").mode(SaveMode.Overwrite).save(deltaSalesPath)
 
 # COMMAND ----------
 
@@ -44,14 +65,21 @@ assert len(dbutils.fs.ls(delta_sales_path)) > 0
 
 # COMMAND ----------
 
+# MAGIC %scala
+# MAGIC 
+# MAGIC assert(dbutils.fs.ls(deltaSalesPath).length > 0)
+
+# COMMAND ----------
+
 # MAGIC %md ### 2. Modify sales data to show item count instead of item array
 # MAGIC Replace values in the **`items`** column with an integer value of the items array size.
 # MAGIC Assign the resulting DataFrame to **`updated_sales_df`**.
 
 # COMMAND ----------
 
-# TODO
-updated_sales_df = FILL_IN
+from pyspark.sql.functions import size, col
+
+updated_sales_df = sales_df.withColumn("items", size(col("items")))
 display(updated_sales_df)
 
 # COMMAND ----------
@@ -74,8 +102,7 @@ print("All test pass")
 
 # COMMAND ----------
 
-# TODO
-updated_sales_df.FILL_IN
+updated_sales_df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").save(delta_sales_path)
 
 # COMMAND ----------
 
@@ -96,11 +123,18 @@ print("All test pass")
 
 # COMMAND ----------
 
-# TODO
+print(delta_sales_path)
 
 # COMMAND ----------
 
-# TODO
+# MAGIC %sql
+# MAGIC DROP TABLE IF EXISTS sales_delta;
+# MAGIC 
+# MAGIC CREATE TABLE sales_delta
+# MAGIC USING DELTA
+# MAGIC LOCATION 'dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/asp_6_1l_delta_lake_lab/delta-sales';
+# MAGIC 
+# MAGIC DESCRIBE HISTORY sales_delta;
 
 # COMMAND ----------
 
@@ -121,8 +155,7 @@ print("All test pass")
 
 # COMMAND ----------
 
-# TODO
-old_sales_df = FILL_IN
+old_sales_df = spark.read.format("delta").option("versionAsOf", "0").load(delta_sales_path)
 display(old_sales_df)
 
 # COMMAND ----------
