@@ -44,6 +44,24 @@ df.isStreaming
 
 # COMMAND ----------
 
+print(events_path)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val eventsPath = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/datasets/events/events.delta"
+# MAGIC 
+# MAGIC val df = spark.readStream.option("maxFilesPerTrigger", "1").format("delta").load(eventsPath)
+# MAGIC 
+# MAGIC df.isStreaming
+
+# COMMAND ----------
+
+# MAGIC %fs ls dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/datasets/events/events.delta
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC Apply some transformations, producing new streaming DataFrames.
 
@@ -58,6 +76,19 @@ email_traffic_df = (df
                    )
 
 email_traffic_df.isStreaming
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC import org.apache.spark.sql.functions._
+# MAGIC 
+# MAGIC val emailTrafficDf = df
+# MAGIC   .filter(col("traffic_source") === "email")
+# MAGIC   .withColumn("mobile", col("device").isin(lit("iOS"), lit("Andriod")))
+# MAGIC   .select("user_id", "event_timestamp", "mobile")
+# MAGIC 
+# MAGIC emailTrafficDf.isStreaming
 
 # COMMAND ----------
 
@@ -79,6 +110,29 @@ devices_query = (email_traffic_df
                  .option("checkpointLocation", checkpoint_path)
                  .start(output_path)
                 )
+
+# COMMAND ----------
+
+print(working_dir)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC import org.apache.spark.sql.streaming.Trigger
+# MAGIC 
+# MAGIC val workingDir = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/asp_5_1_streaming_query"
+# MAGIC val checkPointPath = s"${workingDir}/email_traffic/checkpoint_s"
+# MAGIC val outputPath = s"${workingDir}/email_traffic/outpus_s"
+# MAGIC 
+# MAGIC val devicesQuery = emailTrafficDf
+# MAGIC   .writeStream
+# MAGIC   .outputMode("append")
+# MAGIC   .format("delta")
+# MAGIC   .queryName("email_traffic_s")
+# MAGIC   .trigger(Trigger.ProcessingTime("1 second"))
+# MAGIC   .option("checkpointLocation", checkPointPath)
+# MAGIC   .start(outputPath)
 
 # COMMAND ----------
 
@@ -110,6 +164,19 @@ devices_query.stop()
 # COMMAND ----------
 
 devices_query.awaitTermination()
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC devicesQuery.stop
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC 
+# MAGIC devicesQuery.awaitTermination
 
 # COMMAND ----------
 

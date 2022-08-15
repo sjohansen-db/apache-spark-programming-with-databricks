@@ -40,6 +40,23 @@ df = (spark
 
 # COMMAND ----------
 
+print(datasets_dir)
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC val schemaDDL = """
+# MAGIC device STRING, ecommerce STRUCT<purchase_revenue_in_usd: DOUBLE, total_item_quantity: BIGINT, unique_items: BIGINT>, event_name STRING, event_previous_timestamp BIGINT, event_timestamp BIGINT, geo STRUCT<city: STRING, state: STRING>, items ARRAY<STRUCT<coupon: STRING, item_id: STRING, item_name: STRING, item_revenue_in_usd: DOUBLE, price_in_usd: DOUBLE, quantity: BIGINT>>, traffic_source STRING, user_first_touch_timestamp BIGINT, user_id STRING
+# MAGIC """
+# MAGIC 
+# MAGIC val datasetsDir = "dbfs:/user/steve.johansen@databricks.com/dbacademy/aspwd/datasets"
+# MAGIC val hourlyEventsPath = s"${datasetsDir}/events/events-2020-07-03.json"
+# MAGIC 
+# MAGIC val df = spark.readStream.schema(schemaDDL).option("maxFilesPerTrigger", "1").format("json").load(hourlyEventsPath)
+
+# COMMAND ----------
+
 # MAGIC %md ### 1. Cast to timestamp and add watermark for 2 hours
 # MAGIC - Add a **`createdAt`** column by dividing **`event_timestamp`** by 1M and casting to timestamp
 # MAGIC - Set a watermark of 2 hours on the **`createdAt`** column
@@ -48,9 +65,22 @@ df = (spark
 
 # COMMAND ----------
 
-# TODO
-events_df = (df.FILL_IN
+from pyspark.sql.functions import *
+events_df = (df
+             .withColumn("createdAt", (col("event_timestamp") / 1e6).cast("timestamp"))
+             .withWatermark("createdAt", "2 hours")
             )
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC import org.apache.spark.sql.functions._
+# MAGIC import org.apache.spark.sql.types._
+# MAGIC 
+# MAGIC val eventsDf = df
+# MAGIC   .withColumn("createdAt", (col("event_timestamp") / 1e6).cast(TimestampType))
+# MAGIC   .withWatermark("createdAt", "2 hours")
 
 # COMMAND ----------
 
@@ -58,8 +88,19 @@ events_df = (df.FILL_IN
 
 # COMMAND ----------
 
-assert "StructField(createdAt,TimestampType,true" in str(events_df.schema)
+assert "StructField('createdAt', TimestampType(), True" in str(events_df.schema)
 print("All test pass")
+
+# COMMAND ----------
+
+# MAGIC %scala
+# MAGIC 
+# MAGIC assert(eventsDf.schema.toString.contains("StructField(createdAt,TimestampType,true)"))
+# MAGIC println("All tests pass")
+
+# COMMAND ----------
+
+str(events_df.schema)
 
 # COMMAND ----------
 
@@ -74,11 +115,32 @@ print("All test pass")
 
 # COMMAND ----------
 
-# TODO
-spark.FILL_IN
+# MAGIC %scala
+# MAGIC val numCores = java.lang.Runtime.getRuntime.availableProcessors * (sc.statusTracker.getExecutorInfos.length -1)
 
-traffic_df = (events_df.FILL_IN
+# COMMAND ----------
+
+# TODO
+spark.conf.set("spark.sql.shuffle.partitions", 8)
+
+traffic_df = (events_df
+              .groupBy(
+                window(events_df.createdAt, "1 hour"),
+                "traffic_source"
+              )
+              .agg(
+                approx_count_distinct(col("user_id")).alias("active_users")
+              )
+              .select(
+                col("traffic_source"),
+                col("active_users"),
+                hour(col("window.start")).alias("hour")
+              ).orderBy(asc(col("hour")))
 )
+
+# COMMAND ----------
+
+str(traffic_df.schema)
 
 # COMMAND ----------
 
@@ -86,7 +148,7 @@ traffic_df = (events_df.FILL_IN
 
 # COMMAND ----------
 
-assert str(traffic_df.schema) == "StructType(List(StructField(traffic_source,StringType,true),StructField(active_users,LongType,false),StructField(hour,IntegerType,true)))"
+assert str(traffic_df.schema) == "StructType([StructField('traffic_source', StringType(), True), StructField('active_users', LongType(), False), StructField('hour', IntegerType(), True)])"
 print("All test pass")
 
 # COMMAND ----------
@@ -102,7 +164,7 @@ print("All test pass")
 
 # COMMAND ----------
 
-# TODO
+display(traffic_df, streamName="hourly_traffic")
 
 # COMMAND ----------
 
@@ -120,10 +182,12 @@ print("All test pass")
 
 # COMMAND ----------
 
-# TODO
-until_stream_is_ready("hourly_traffic")
+#until_stream_is_ready("hourly_traffic")
 
-for s in FILL_IN:
+for s in spark.streams.active:
+  if s.name == 'hourly_traffic':
+    s.stop()
+    s.awaitTermination()
 
 # COMMAND ----------
 

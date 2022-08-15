@@ -43,8 +43,7 @@
 
 # COMMAND ----------
 
-# TODO
-df = FILL_IN
+df = spark.readStream.format("delta").option("maxFilesPerTrigger", 1).load(events_path)
 
 df.isStreaming
 
@@ -68,10 +67,26 @@ print("All test pass")
 
 # COMMAND ----------
 
-# TODO
-spark.FILL_IN
+# MAGIC %scala
+# MAGIC val numCores = java.lang.Runtime.getRuntime.availableProcessors * (sc.statusTracker.getExecutorInfos.length -1)
 
-traffic_df = df.FILL_IN
+# COMMAND ----------
+
+from pyspark.sql.functions import approx_count_distinct, col, desc
+
+spark.conf.set("spark.sql.shuffle.partitions", 8)
+
+traffic_df = (df
+              .groupBy("traffic_source")
+              .agg(
+                approx_count_distinct(col("user_id")).alias("active_users")
+              )
+              .orderBy(desc(col("active_users")))
+             )
+
+# COMMAND ----------
+
+traffic_df.schema
 
 # COMMAND ----------
 
@@ -79,7 +94,7 @@ traffic_df = df.FILL_IN
 
 # COMMAND ----------
 
-assert str(traffic_df.schema) == "StructType(List(StructField(traffic_source,StringType,true),StructField(active_users,LongType,false)))"
+assert str(traffic_df.schema) == "StructType([StructField('traffic_source', StringType(), True), StructField('active_users', LongType(), False)])"
 print("All test pass")
 
 # COMMAND ----------
@@ -90,7 +105,7 @@ print("All test pass")
 
 # COMMAND ----------
 
-# TODO
+display(traffic_df, streamName='traffic')
 
 # COMMAND ----------
 
@@ -107,8 +122,13 @@ print("All test pass")
 
 # COMMAND ----------
 
-# TODO
-traffic_query = (traffic_df.FILL_IN
+traffic_query = (traffic_df
+                 .writeStream
+                 .format("memory")
+                 .queryName("active_users_by_traffic")
+                 .outputMode("complete")
+                 .trigger(processingTime='1 second')
+                 .start()
 )
 
 # COMMAND ----------
@@ -117,7 +137,7 @@ traffic_query = (traffic_df.FILL_IN
 
 # COMMAND ----------
 
-until_stream_is_ready("active_users_by_traffic")
+#until_stream_is_ready("active_users_by_traffic")
 assert traffic_query.isActive
 assert "active_users_by_traffic" in traffic_query.name
 assert traffic_query.lastProgress["sink"]["description"] == "MemorySink"
@@ -131,7 +151,9 @@ print("All test pass")
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC -- TODO
+# MAGIC SELECT *
+# MAGIC   FROM active_users_by_traffic
+# MAGIC  ORDER BY traffic_source ASC
 
 # COMMAND ----------
 
@@ -155,7 +177,10 @@ print("All test pass")
 
 # COMMAND ----------
 
-# TODO
+for s in spark.streams.active:
+  print(s.name)
+  s.stop()
+  s.awaitTermination()
 
 # COMMAND ----------
 
